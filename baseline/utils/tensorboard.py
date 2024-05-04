@@ -1,4 +1,4 @@
-import PIL
+import PIL.Image
 import scipy.misc
 from io import BytesIO
 import tensorboardX as tb

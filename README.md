@@ -16,8 +16,8 @@ tracking data.
 
 **You can easily use [colaboratory](https://colab.research.google.com/github/hzwer/LearningToPaint/blob/master/LearningToPaint.ipynb) to have a try.**
 
-![Demo](./demo/lisa.gif)![Demo](./demo/sunrise.gif)![Demo](./demo/sunflower.gif)
-![Demo](./demo/palacemuseum.gif)![Demo](./demo/deepdream_night.gif)![Demo](./demo/deepdream_bird.gif)
+<!-- ![Demo](./demo/lisa.gif)![Demo](./demo/sunrise.gif)![Demo](./demo/sunflower.gif)
+![Demo](./demo/palacemuseum.gif)![Demo](./demo/deepdream_night.gif)![Demo](./demo/deepdream_bird.gif) -->
 
 ### Dependencies
 * [PyTorch](http://pytorch.org/) 1.1.0 
@@ -82,9 +82,9 @@ $ tensorboard --logdir train_log --port=6006
 [旷视研究院推出基于深度强化学习的绘画智能体](https://zhuanlan.zhihu.com/p/80732065)
 
 * Our ICCV poster
-  <div>
+  <!-- <div>
   <img src="./image/poster.png" width="800">
-  </div>
+  </div> -->
 * [Our ICCV rebuttal for reviewers](https://drive.google.com/file/d/1bEBS-uxmVEc7WVuX35NCodxDu17s_d8m/view?usp=sharing)
 ## Contributors
 - [hzwer](https://github.com/hzwer)
