@@ -29,7 +29,7 @@ def draw(f, width=128, show_points=False):
     z0 = (int)(1 + z0 * width // 2)
     z2 = (int)(1 + z2 * width // 2)
     # double canvas size to account for resolution?
-    canvas = np.zeros([width * 2, width * 2]).astype('float32')
+    canvas = np.zeros([width * 2, width * 2], dtype='float32')
     tmp = 1. / 100
     # discrete approximation of shape by repeatedly filling in circles for 100 steps. 
     for i in range(100):
