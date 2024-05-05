@@ -8,7 +8,7 @@ from utils.tensorboard import TensorBoard
 from Renderer.model import FCN
 from Renderer.stroke_gen import *
 
-writer = TensorBoard("train_log/")
+writer = TensorBoard("../train_log/")
 import torch.optim as optim
 
 criterion = nn.MSELoss()
