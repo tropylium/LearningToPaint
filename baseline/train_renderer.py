@@ -43,26 +43,26 @@ def train_model(
 ):
     print("Initializing...")
     writer = TensorBoard(log_file)
-    # initialize stuff
     criterion = nn.MSELoss()
     net = FCN()
     load_weights(net, file)
     net = net.cuda()
-    
     optimizer = optim.Adam(net.parameters(), lr=3e-6)
+    generator = FastStrokeGenerator(256, 128, torch.device("cuda"))
     print("Finished init, starting training.")
+    
     pbar = tqdm(range(total_steps))
     for step in pbar:
         net.train()
 
         start = time.time()
         # generate synthetic training data using stoke_gen.draw()
-        train_batch, ground_truth = gen_data(batch_size)
-        train_batch = train_batch.float().cuda()
-        ground_truth = ground_truth.float().cuda()
-        finish = time.time()
-        tqdm.write(f"Generating data took: {finish - start}")
-        start = finish
+        train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
+#         train_batch = train_batch.float().cuda()
+#         ground_truth = ground_truth.float().cuda()
+#         finish = time.time()
+#         tqdm.write(f"Generating data took: {finish - start}")
+#         start = finish
 
         # Training boilerplate
         gen = net(train_batch)
@@ -70,8 +70,9 @@ def train_model(
         loss = criterion(gen, ground_truth)
         loss.backward()
         optimizer.step()
-        finish = time.time()
-        tqdm.write(f"Training took: {finish - start}")
+#         finish = time.time()
+#         tqdm.write(f"Training took: {finish - start}")
+#         start = finish
 
         # decay learning rate according to step
         pbar.set_description(f"loss: {loss.item():3.6f}")
@@ -83,9 +84,16 @@ def train_model(
             lr = 1e-6
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
+            
+#         finish = time.time()
+#         tqdm.write(f"Writing took: {finish - start}")
+#         start = finish
 
         # log stuff
         writer.add_scalar("train/loss", loss.item(), step)
+#         finish = time.time()
+#         tqdm.write(f"Logging took: {finish - start}")
+#         start = finish
         if step % 100 == 0:
             net.eval()
             gen = net(train_batch)
@@ -100,8 +108,12 @@ def train_model(
         # save model every once in a while
         if step % 1000 == 0:
             save_model(net, file)
+        
+#         finish = time.time()
+#         tqdm.write(f"Everything else took: {finish - start}")
+#         start = finish
 
 if __name__ == '__main__':
     train_model(
-        total_steps=10
+        total_steps=100
     )
