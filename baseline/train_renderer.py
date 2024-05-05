@@ -55,7 +55,7 @@ def train_model(
     for step in pbar:
         net.train()
 
-        start = time.time()
+#         start = time.time()
         # generate synthetic training data using stoke_gen.draw()
         train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
 #         train_batch = train_batch.float().cuda()

@@ -60,15 +60,16 @@ class FastStrokeGenerator():
         x = torch.arange(width, dtype=torch.float32, device=self.device)
         y = torch.arange(width, dtype=torch.float32, device=self.device)
         grid_x, grid_y = torch.meshgrid(x, y)
-        self.grid_x = grid_x[None, None, :, :].repeat(self.batch_size, self.num_steps, 1, 1)
-        self.grid_y = grid_y[None, None, :, :].repeat(self.batch_size, self.num_steps, 1, 1)
+        self.grid_x = grid_x.view(1, width, width) #.repeat(self.batch_size, self.num_steps, 1, 1)
+        self.grid_y = grid_y.view(1, width, width) #.repeat(self.batch_size, self.num_steps, 1, 1)
         
-        t = torch.arange(0, 1, 1.0/self.num_steps, dtype=torch.float32, device=self.device)[None, :]
+        # all of these have shape ()
+        t = torch.linspace(0, 1, self.num_steps, dtype=torch.float32, device=self.device)
         self.t = t
         self.minus_t = 1-t
-        self.qbc_start = ((self.minus_t)**2)[..., None]
-        self.qbc_middle = (2*(self.minus_t)*t)[..., None]
-        self.qbc_stop = (t**2)[..., None]
+        self.qbc_start = (self.minus_t)**2
+        self.qbc_middle = 2*(self.minus_t)*t
+        self.qbc_stop = t**2
         
     def _create_gaussian_filter(self, sigma):
         x = torch.arange(start=-1, end=2, dtype=torch.float32, device=self.device)
@@ -86,55 +87,58 @@ class FastStrokeGenerator():
             return value * (width - 1) + 0.5
         
         strokes = self._generate_strokes()
-#         print("strokes", strokes)
+
+        # compute all points; all points have shape (batch_size, 2)
         P0 = strokes[:, 0:2]
         P1 = strokes[:, 2:4]
         P2 = strokes[:, 4:6]
         P1 = P0 + (P2 - P0) * P1
         
+        # scale points to width
         P0 = scale_to_width(P0, self.width)
         P1 = scale_to_width(P1, self.width)
         P2 = scale_to_width(P2, self.width)
         
+        # compute and scale radii; shape (batch_size,)
         radii = strokes[:, 6:8]
         radii = 1 + radii * (self.width // 4)
+        radius0 = radii[:, 0]
+        radius2 = radii[:, 1]
         
-        radius0 = radii[:, 0:1]
-        radius2 = radii[:, 1:2]
+        # get colors; shape (batch_size,)
+        color0 = strokes[:, 8]
+        color2 = strokes[:, 9]
         
-        # clone since we may write to it
-        color0 = strokes[:, 8:9].clone()
-        color2 = strokes[:, 9:10].clone()
+        # compute interpolated values for each step size
+        P = (
+            torch.einsum('bd,t->btd', P0, self.qbc_start) + 
+            torch.einsum('bd,t->btd', P1, self.qbc_middle) + 
+            torch.einsum('bd,t->btd', P2, self.qbc_stop)
+        )
+        X = P[..., 0]
+        Y = P[..., 1]
+        radius = (
+            torch.einsum('b,t->bt', radius0, self.minus_t) + 
+            torch.einsum('b,t->bt', radius2, self.t)
+        )
+        color = (
+            torch.einsum('b,t->bt', color0, self.minus_t) + 
+            torch.einsum('b,t->bt', color2, self.t)
+        )
         
-        # neat trick to allow us to use torch.max to simulate layering circles
-        color_signs = torch.sign(color2 - color0)
-        color2_less = color_signs < 0
-        invert_color0 = 1 - color0
-        invert_color2 = 1 - color2
-        color0[color2_less] = invert_color0[color2_less]
-        color2[color2_less] = invert_color2[color2_less]
+        # make canvas
+        canvas = torch.zeros((self.batch_size, self.width, self.width), dtype=torch.float32, device=self.device)
+        for i in range(self.num_steps):
+            Xt = X[:, i].view(self.batch_size, 1, 1)
+            Yt = Y[:, i].view(self.batch_size, 1, 1)
+            radius_t = radius[:, i].view(self.batch_size, 1, 1)
+            color_t = color[:, i].view(self.batch_size, 1, 1)
+            
+            is_in_circle = (self.grid_x - Xt)**2 + (self.grid_y - Yt)**2 < radius_t**2
+            canvas[is_in_circle] = color_t.expand(-1, self.width, self.width)[is_in_circle]
         
-        P0 = torch.unsqueeze(P0, dim=1)
-        P1 = torch.unsqueeze(P1, dim=1)
-        P2 = torch.unsqueeze(P2, dim=1)
-        
-        # all should be (batch_size, num_steps, width, width)
-        def tile(value):
-            return value[:, :, None, None].repeat(1,1,self.width, self.width)
-        
-        P = self.qbc_start*P0 + self.qbc_middle*P1 + self.qbc_stop*P2 
-        X = tile(P[..., 0])
-        Y = tile(P[..., 1])
-        radius = tile(radius0 * self.minus_t + radius2 * self.t)
-        color = tile(color0 * self.minus_t + color2 * self.t)
-        
-        circles = torch.zeros((self.batch_size, self.num_steps, self.width, self.width), dtype=torch.float32, device=self.device)
-        is_in_circle = (self.grid_x - X)**2 + (self.grid_y - Y)**2 < radius**2
-        circles[is_in_circle] = color[is_in_circle]
-        
-        canvas, _ = torch.max(circles, dim=1, keepdim=True)
-        should_invert = color2_less[:, None, None] * (canvas > 0)
-        canvas[should_invert] = (1 - canvas)[should_invert]
+        # expand channel dimension to pass into conv2d
+        canvas = canvas.view(self.batch_size, 1, self.width, self.width)
         canvas = F.conv2d(canvas, self.filter, padding=1).squeeze(dim=1) # squeeze in channels
         return strokes, 1 - canvas
         
