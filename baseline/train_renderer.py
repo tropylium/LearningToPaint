@@ -55,14 +55,14 @@ def train_model(
     for step in pbar:
         net.train()
 
-        start = time.time()
+#         start = time.time()
         # generate synthetic training data using stoke_gen.draw()
         train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
 #         train_batch = train_batch.float().cuda()
 #         ground_truth = ground_truth.float().cuda()
-        finish = time.time()
-        tqdm.write(f"Generating data took: {finish - start}")
-        start = finish
+#         finish = time.time()
+#         tqdm.write(f"Generating data took: {finish - start}")
+#         start = finish
 
         # Training boilerplate
         gen = net(train_batch)
