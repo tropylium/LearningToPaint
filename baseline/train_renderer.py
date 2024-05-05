@@ -48,7 +48,7 @@ def train_model(
     load_weights(net, file)
     net = net.cuda()
     optimizer = optim.Adam(net.parameters(), lr=3e-6)
-    generator = FastStrokeGenerator(256, 128, torch.device("cuda"))
+    generator = FastStrokeGenerator(batch_size, 128, torch.device("cuda"))
     print("Finished init, starting training.")
     
     pbar = tqdm(range(total_steps))
@@ -60,9 +60,9 @@ def train_model(
         train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
 #         train_batch = train_batch.float().cuda()
 #         ground_truth = ground_truth.float().cuda()
-#         finish = time.time()
-#         tqdm.write(f"Generating data took: {finish - start}")
-#         start = finish
+        finish = time.time()
+        tqdm.write(f"Generating data took: {finish - start}")
+        start = finish
 
         # Training boilerplate
         gen = net(train_batch)
