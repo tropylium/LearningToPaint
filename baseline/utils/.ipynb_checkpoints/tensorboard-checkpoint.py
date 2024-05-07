@@ -12,20 +12,12 @@ class TensorBoard(object):
         summary = Summary()
         bio = BytesIO()
 
-#         if type(img) == str:
-#             img = PIL.Image.open(img)
-#         elif type(img) == PIL.Image.Image:
-#             pass
-#         else:
-#             img = scipy.misc.toimage(img)
-            
-            
         if type(img) == str:
             img = PIL.Image.open(img)
+        elif type(img) == PIL.Image.Image:
+            pass
         else:
-            img = PIL.Image.fromarray(img)
-            img = img.convert('RGB')
-
+            img = scipy.misc.toimage(img)
 
         img.save(bio, format="png")
         image_summary = Summary.Image(encoded_image_string=bio.getvalue())

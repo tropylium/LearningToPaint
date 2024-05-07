@@ -8,3 +8,4 @@ output/*
 **/.ipynb_checkpoints
 train_log/
 **/log
+output1/*
