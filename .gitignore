@@ -2,6 +2,7 @@
 *.py~
 
 data/
+.vscode/
 *.pkl
 
 output/*
