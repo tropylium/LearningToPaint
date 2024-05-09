@@ -6,6 +6,7 @@ from tensorboardX.summary import Summary
 
 class TensorBoard(object):
     def __init__(self, model_dir):
+        
         self.summary_writer = tb.FileWriter(model_dir)
 
     def add_image(self, tag, img, step):

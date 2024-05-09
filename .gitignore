@@ -8,3 +8,5 @@ output/*
 **/.ipynb_checkpoints
 train_log/
 **/log
+**/*.slurm
+baseline/slurm_jobs
