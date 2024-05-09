@@ -9,6 +9,7 @@ from DRL.ddpg import decode
 from utils.util import *
 from PIL import Image
 from torchvision import transforms, utils
+import idx2numpy
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 aug = transforms.Compose(
@@ -32,24 +33,57 @@ class Paint:
         self.observation_space = (self.batch_size, width, width, 7)
         self.test = False
         
+#     def load_data(self):
+#         # CelebA
+#         global train_num, test_num
+#         for i in range(200000):
+#             img_id = '%06d' % (i + 1)
+#             try:
+#                 img = cv2.imread('../data/img_align_celeba/' + img_id + '.jpg', cv2.IMREAD_UNCHANGED)
+#                 img = cv2.resize(img, (width, width))
+#                 if i > 2000:                
+#                     train_num += 1
+#                     img_train.append(img)
+#                 else:
+#                     test_num += 1
+#                     img_test.append(img)
+#             finally:
+#                 if (i + 1) % 10000 == 0:                    
+#                     print('loaded {} images'.format(i + 1))
+#                     print('shape of image {}'.format(img.shape))
+#         print('finish loading data, {} training images, {} testing images'.format(str(train_num), str(test_num)))
+        
     def load_data(self):
-        # CelebA
+        # MNIST
         global train_num, test_num
-        for i in range(200000):
-            img_id = '%06d' % (i + 1)
-            try:
-                img = cv2.imread('./data/img_align_celeba/' + img_id + '.jpg', cv2.IMREAD_UNCHANGED)
-                img = cv2.resize(img, (width, width))
-                if i > 2000:                
-                    train_num += 1
-                    img_train.append(img)
-                else:
-                    test_num += 1
-                    img_test.append(img)
-            finally:
-                if (i + 1) % 10000 == 0:                    
-                    print('loaded {} images'.format(i + 1))
-        print('finish loading data, {} training images, {} testing images'.format(str(train_num), str(test_num)))
+        i = 0 
+        train_images = '../data/MNIST/train-images-idx3-ubyte'
+        test_images = '../data/MNIST/t10k-images-idx3-ubyte'
+        train_arr = idx2numpy.convert_from_file(train_images)
+        # train_arr is now a np.ndarray type of object of shape 60000, 28, 28
+        test_arr = idx2numpy.convert_from_file(test_images)
+        # 10000 test images
+        
+        for i in range(train_arr.shape[0]):
+            img = cv2.resize(train_arr[i], (width, width)) #128 by 128
+            img = img[:, :, np.newaxis]
+            img = np.repeat(img, 3, axis=2)
+#             img = np.expand_dims(img, axis=-1)  # Add a channel dimensions
+            img_train.append(img)
+            train_num += 1
+            if (i + 1) % 10000 == 0:
+                print('loaded {} images'.format(i + 1))
+                print('shape of image {}'.format(img.shape))
+                
+        for i in range(test_arr.shape[0]):
+            img = cv2.resize(test_arr[i], (width, width)) #128 by 128
+            img = img[:, :, np.newaxis]
+            img = np.repeat(img, 3, axis=2)
+#             img = np.expand_dims(img, axis=-1)  # Add a channel dimensions
+            img_test.append(img)
+            test_num += 1
+            
+        print('finish loading data, {} training images, {} testing images'.format(str(len(img_train)), str(len(img_test))))
         
     def pre_data(self, id, test):
         if test:
@@ -58,13 +92,17 @@ class Paint:
             img = img_train[id]
         if not test:
             img = aug(img)
+#         print('before,', img)
         img = np.asarray(img)
+#         img = np.expand_dims(img, axis=-1)  # Add a channel dimensions
+#         print('after'+ str(img.shape))
         return np.transpose(img, (2, 0, 1))
     
     def reset(self, test=False, begin_num=False):
         self.test = test
         self.imgid = [0] * self.batch_size
         self.gt = torch.zeros([self.batch_size, 3, width, width], dtype=torch.uint8).to(device)
+#         self.gt = torch.zeros([self.batch_size, 1, width, width], dtype=torch.uint8).to(device)
         for i in range(self.batch_size):
             if test:
                 id = (i + begin_num)  % test_num
@@ -75,6 +113,7 @@ class Paint:
         self.tot_reward = ((self.gt.float() / 255) ** 2).mean(1).mean(1).mean(1)
         self.stepnum = 0
         self.canvas = torch.zeros([self.batch_size, 3, width, width], dtype=torch.uint8).to(device)
+#         self.canvas = torch.zeros([self.batch_size, 1, width, width], dtype=torch.uint8).to(device)
         self.lastdis = self.ini_dis = self.cal_dis()
         return self.observation()
     

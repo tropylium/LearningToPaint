@@ -87,6 +87,7 @@ def train_model(
 
         # start = time.time()
         # generate synthetic training data using stoke_gen.draw()
+<<<<<<< HEAD
         # strokes = generator.module.generate_strokes()
         strokes = generator.generate_strokes().to(device)
         images = nn.parallel.data_parallel(generator, strokes) #gen_data(batch_size)
@@ -98,6 +99,14 @@ def train_model(
 
         train_batch = strokes
         ground_truth = images
+=======
+        train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
+#         train_batch = train_batch.float().cuda()
+#         ground_truth = ground_truth.float().cuda()
+        finish = time.time()
+        tqdm.write(f"Generating data took: {finish - start}")
+        start = finish
+>>>>>>> 8936236f76458f0813bd73a5fef1e11312c9c185
 
         # Training boilerplate
         gen = net(train_batch)

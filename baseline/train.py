@@ -58,14 +58,27 @@ def train(agent, env, evaluate):
                     lr = (1e-4, 3e-4)
                 else:
                     lr = (3e-5, 1e-4)
+                start = time.time()
                 for i in range(episode_train_times):
                     Q, value_loss = agent.update_policy(lr)
+#                     finish = time.time()
+#                     t1 = finish - start
+#                     start = finish
                     tot_Q += Q.data.cpu().numpy()
+#                     finish = time.time()
+#                     t2 = finish - start
+#                     start = finish
                     tot_value_loss += value_loss.data.cpu().numpy()
+#                     finish = time.time()
+#                     t3 = finish - start
+#                     start = finish
+#                     if debug: prRed('update policy: {} totQ: {} tot_value_loss: {}'.format(t1, t2, t3))
                 writer.add_scalar('train/critic_lr', lr[0], step)
                 writer.add_scalar('train/actor_lr', lr[1], step)
                 writer.add_scalar('train/Q', tot_Q / episode_train_times, step)
                 writer.add_scalar('train/critic_loss', tot_value_loss / episode_train_times, step)
+#                 finish = time.time()
+#                 if debug: prRed('time writing: {}'.format(finish-start))
             if debug: prBlack('#{}: steps:{} interval_time:{:.2f} train_time:{:.2f}' \
                 .format(episode, step, train_time_interval, time.time()-time_stamp)) 
             time_stamp = time.time()
@@ -88,7 +101,8 @@ if __name__ == "__main__":
     parser.add_argument('--noise_factor', default=0, type=float, help='noise level for parameter space noise')
     parser.add_argument('--validate_interval', default=50, type=int, help='how many episodes to perform a validation')
     parser.add_argument('--validate_episodes', default=5, type=int, help='how many episode to perform during validation')
-    parser.add_argument('--train_times', default=2000000, type=int, help='total traintimes')
+#     parser.add_argument('--train_times', default=2000000, type=int, help='total traintimes')
+    parser.add_argument('--train_times', default=20000, type=int, help='total traintimes')
     parser.add_argument('--episode_train_times', default=10, type=int, help='train times for each episode')    
     parser.add_argument('--resume', default=None, type=str, help='Resuming model path for testing')
     parser.add_argument('--output', default='./model', type=str, help='Resuming model path for testing')
@@ -99,7 +113,9 @@ if __name__ == "__main__":
     args.output = get_output_folder(args.output, "Paint")
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    if torch.cuda.is_available(): torch.cuda.manual_seed_all(args.seed)
+    if torch.cuda.is_available(): 
+        torch.cuda.manual_seed_all(args.seed)
+        print('GPU running!')
     random.seed(args.seed)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True

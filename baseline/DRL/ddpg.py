@@ -1,4 +1,5 @@
 import numpy as np
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,6 +11,8 @@ from DRL.critic import *
 from DRL.wgan import *
 from utils.util import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    print("GPU DDPG")
 
 coord = torch.zeros([1, 2, 128, 128])
 for i in range(128):
@@ -124,22 +127,22 @@ class DDPG(object):
         # Sample batch
         state, action, reward, \
             next_state, terminal = self.memory.sample_batch(self.batch_size, device)
-
-        self.update_gan(next_state)
         
+        self.update_gan(next_state)
+                
         with torch.no_grad():
             next_action = self.play(next_state, True)
             target_q, _ = self.evaluate(next_state, next_action, True)
             target_q = self.discount * ((1 - terminal.float()).view(-1, 1)) * target_q
-                
+
         cur_q, step_reward = self.evaluate(state, action)
         target_q += step_reward.detach()
-        
+
         value_loss = criterion(cur_q, target_q)
         self.critic.zero_grad()
         value_loss.backward(retain_graph=True)
         self.critic_optim.step()
-
+        
         action = self.play(state)
         pre_q, _ = self.evaluate(state.detach(), action)
         policy_loss = -pre_q.mean()

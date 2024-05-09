@@ -2,11 +2,14 @@
 *.py~
 
 data/
+.vscode/
 *.pkl
 
 output/*
 **/.ipynb_checkpoints
 train_log/
+baseline/train_log/
 **/log
 **/*.slurm
 baseline/slurm_jobs
+output1/*
