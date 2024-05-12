@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import torch.nn.utils.weight_norm as weightNorm
 
 class FCN(nn.Module):
-    def __init__(self):
+    def __init__(self, input_dim=10):
         super(FCN, self).__init__()
-        self.fc1 = (nn.Linear(10, 512))
+        self.fc1 = (nn.Linear(input_dim, 512))
         self.fc2 = (nn.Linear(512, 1024))
         self.fc3 = (nn.Linear(1024, 2048))
         self.fc4 = (nn.Linear(2048, 4096))

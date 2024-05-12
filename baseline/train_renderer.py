@@ -2,6 +2,7 @@ import cv2
 import torch
 import numpy as np
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils.tensorboard import TensorBoard
@@ -25,25 +26,42 @@ def load_weights(net, from_file):
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
     net.load_state_dict(model_dict)
-    
-# def gen_data(batch_size):
-#     # generate synthetic training data using stoke_gen.draw()
-#     train_batch = []
-#     ground_truth = []
-#     for i in range(batch_size):
-#         f = np.random.uniform(0, 1, 10)
-#         train_batch.append(f)
-#         ground_truth.append(draw(f))
-#     train_batch = torch.tensor(train_batch)
-#     ground_truth = torch.tensor(ground_truth)
-#     return train_batch, ground_truth
 
 def get_checkpoint_file(file, step):
     root, ext = os.path.splitext(file)
     return f"{root}_{step}{ext}"
 
+def get_criterion():
+#     return nn.MSELoss()
+    mse_loss = nn.MSELoss()
+    def my_loss(output, target):
+        batch_size = output.shape[0]
+        filled_target = target < (1.0 - 0.01)
+        filled_counts = torch.sum(filled_target, dim=(1,2), dtype=torch.float32)
+        empty_counts = -(filled_counts - output.numel()/batch_size)
+#         print(filled_counts + 1, empty_counts + 1)
+#         print(torch.sum(target.masked_fill(~filled_target, 0.0)))
+
+        filled_loss = torch.sum((target.masked_fill(~filled_target, 0.0) - output.masked_fill(~filled_target, 0.0))**2, dim=(1,2))/(filled_counts + 1)  # avoid divide by 0
+        
+        empty_loss = torch.sum((target.masked_fill(filled_target, 0.0) - output.masked_fill(filled_target, 0.0))**2, dim=(1,2))/(empty_counts + 1)  # avoid divide by 0
+        
+#         print(filled_loss, empty_loss)
+        
+#         raise Exception()
+        return torch.sum(filled_loss + empty_loss)/batch_size
+    return my_loss
+
+def get_renderer(key, batch_size, width=128):
+    renderers = {
+        "qbc": QbcStroke,
+        "squareblur": SquareAndBlurStroke,
+    }
+    return renderers[key](batch_size, 128)
+
 def train_model(
     model_dir,
+    renderer,
     start,
     steps,
     decay,
@@ -57,10 +75,12 @@ def train_model(
     device = torch.device("cuda")
     num_devices = torch.cuda.device_count()
     print(f"Using {num_devices} gpus.")
-    net = FCN()
+    
+    generator = get_renderer(renderer, batch_size, 128)
+    net = FCN(generator.stroke_size())
     
     model_path = os.path.join(".", "models_renderer", model_dir)
-    os.makedirs(model_path)
+    os.makedirs(model_path, exist_ok=True)
     print(f"Saving at {model_path}")
     
     model_file = os.path.join(model_path, "model.pkl")
@@ -71,12 +91,11 @@ def train_model(
     net = net.to(device)
     net = torch.nn.DataParallel(net)
     
-    generator = FastStrokeGenerator(batch_size, 128)
-    criterion = nn.MSELoss()
+    criterion = get_criterion()
     optimizer = optim.Adam(net.parameters(), lr=3e-6*batch_size/64/num_devices)
     
     log_dir = os.path.join(log_file, model_dir)
-    os.makedirs(log_dir)
+    os.makedirs(log_dir, exist_ok=True)
     writer = TensorBoard(log_dir)
     
     print("Finished init, starting training...")
@@ -87,7 +106,6 @@ def train_model(
 
         # start = time.time()
         # generate synthetic training data using stoke_gen.draw()
-<<<<<<< HEAD
         # strokes = generator.module.generate_strokes()
         strokes = generator.generate_strokes().to(device)
         images = nn.parallel.data_parallel(generator, strokes) #gen_data(batch_size)
@@ -99,14 +117,6 @@ def train_model(
 
         train_batch = strokes
         ground_truth = images
-=======
-        train_batch, ground_truth = generator.get_batch() #gen_data(batch_size)
-#         train_batch = train_batch.float().cuda()
-#         ground_truth = ground_truth.float().cuda()
-        finish = time.time()
-        tqdm.write(f"Generating data took: {finish - start}")
-        start = finish
->>>>>>> 8936236f76458f0813bd73a5fef1e11312c9c185
 
         # Training boilerplate
         gen = net(train_batch)
@@ -160,6 +170,8 @@ if __name__ == '__main__':
     # model arguments
     parser.add_argument("model_dir", help="Directory to load model from. If doesn't exist, instead creates this directory and trains a model from scratch.", type=str)
     
+    parser.add_argument("-renderer", "-r", help="Renderer selection", type=str, default="qbc")
+    
     # optional training arguments
     parser.add_argument("-start", "-st", help="Starting step, for use with checkpointing", type=int, default=0)
     parser.add_argument("-steps", "-s", help="Steps to run for.", type=int, default=25000)
@@ -176,6 +188,7 @@ if __name__ == '__main__':
         args = argparse.Namespace(
             debug=True,
             model_dir=args.model_dir,
+            renderer=args.renderer,
             start=0,
             steps=100,
             decay=False,
