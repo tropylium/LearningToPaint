@@ -56,6 +56,7 @@ def get_renderer(key, batch_size, width=128):
     renderers = {
         "qbc": QbcStroke,
         "squareblur": SquareAndBlurStroke,
+        "rectEllipse": RectAndEllipseStroke,
     }
     return renderers[key](batch_size, 128)
 

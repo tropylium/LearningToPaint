@@ -138,7 +138,7 @@ class SquareAndBlurStroke(torch.nn.Module):
         # 3: stddev/ radius
         # 4: color
         strokes = 0.1 + 0.9*torch.rand((self.batch_size, self.stroke_size()), dtype=torch.float32) # prevent overly small strokes
-        strokes[..., 1:4] = strokes[..., 1:4]**1.5 # skew dist toward smaller
+        strokes[..., 3:4] = strokes[..., 3:4]**1.5 # skew dist toward smaller
         return strokes
     
     def forward(self, strokes):
@@ -182,6 +182,80 @@ class SquareAndBlurStroke(torch.nn.Module):
             
             blur = torch.exp(-((grid_x - X)**2 + (grid_y - Y)**2)/2/radius) * color
             in_square = (grid_x - X < radius/2) & (grid_x - X > -radius/2) & (grid_y - Y < radius/2) & (grid_y - Y > -radius/2)
+            
+            canvas[in_square] = color.expand(-1, self.width, self.width)[in_square]
+            is_blur = choice > 0.5
+            canvas[is_blur, ...] = blur[is_blur, ...]
+            
+            
+            # expand channel dimension to pass into conv2d
+#             canvas = canvas.view(batch_size, 1, self.width, self.width)
+#             canvas = F.conv2d(canvas, blur_filter, padding=1).squeeze(dim=1) # squeeze in channels
+            return 1 - canvas
+
+class RectAndEllipseStroke(torch.nn.Module):
+    def __init__(self, batch_size, width):
+        super(RectAndEllipseStroke, self).__init__()
+        self.batch_size = batch_size
+        self.width = width
+        self.num_steps = 100
+        
+    def stroke_size(self):
+        return 6
+        
+    def generate_strokes(self):
+        # 0: choice
+        # 1,2: center
+        # 3: stddev/ radius x
+        # 4: stddev/ radius y
+        # 5: color
+        strokes = 0.1 + 0.9*torch.rand((self.batch_size, self.stroke_size()), dtype=torch.float32) # prevent overly small strokes
+        strokes[..., 3:5] = strokes[..., 3:5]**1.5 # skew dist toward smaller
+        return strokes
+    
+    def forward(self, strokes):
+        def scale_to_width(value, width):
+            return value * (width - 1) + 0.5
+
+        batch_size = strokes.shape[0] # note nn.DataParallel may mess with self.batch_size
+        device = strokes.get_device() # similarly with this
+        
+        width = self.width
+#         sigma = 0.5
+#         x = torch.arange(start=-1, end=2, dtype=torch.float32, device=device)
+#         y = torch.arange(start=-1, end=2, dtype=torch.float32, device=device)
+#         grid_x, grid_y = torch.meshgrid(x, y)
+#         result = torch.exp(-(grid_x**2 + grid_y**2)/2/sigma**2)
+#         blur_filter = result[None, None, :, :]/torch.sum(result)
+
+        x = torch.arange(width, dtype=torch.float32, device=device)
+        y = torch.arange(width, dtype=torch.float32, device=device)
+        grid_x, grid_y = torch.meshgrid(x, y)
+        grid_x = grid_x.view(1, width, width)
+        grid_y = grid_y.view(1, width, width)
+
+        with torch.no_grad():
+            choice = strokes[:, 0]
+            # compute all points; all points have shape (batch_size, 2)
+            center = strokes[:, 1:3]
+            center = scale_to_width(center, self.width)
+            X = center[..., 0].view(batch_size, 1, 1)
+            Y = center[..., 1].view(batch_size, 1, 1)
+
+            # compute and scale radii; shape (batch_size,)
+            radiusX = strokes[:, 3]
+            radiusX = scale_to_width(radiusX, self.width).view(batch_size, 1, 1)
+            radiusY = strokes[:, 4]
+            radiusY = scale_to_width(radiusY, self.width).view(batch_size, 1, 1)
+
+            # get colors; shape (batch_size,)
+            color = strokes[:, 5].view(batch_size, 1, 1)
+            
+            # make canvas
+            canvas = torch.zeros((batch_size, self.width, self.width), dtype=torch.float32, device=device)
+            
+            blur = torch.exp(-((grid_x - X)**2/radiusX + (grid_y - Y)**2/radiusY)/2) * color
+            in_square = (grid_x - X < radiusX/2) & (grid_x - X > -radiusX/2) & (grid_y - Y < radiusY/2) & (grid_y - Y > -radiusY/2)
             
             canvas[in_square] = color.expand(-1, self.width, self.width)[in_square]
             is_blur = choice > 0.5
